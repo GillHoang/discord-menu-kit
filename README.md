@@ -41,6 +41,13 @@ pnpm typecheck           # kiểm tra kiểu
 | Middleware | cooldown, phân quyền, tự viết thêm |
 | Ack chậm và chống nhấn đúp | `slow: true`, khóa theo session, dedupe theo `interaction.id` |
 | Phân trang | `ctx.paginate()`, nút ◀ ▶ tự xử lý |
+| Xác nhận, wizard, zod | `Nav.confirm`, `WizardMenu`, `@Modal(id, { schema })` |
+| Components V2 | `v2()`, `panel()`, `text()`; kiểm tra giới hạn 40 component lúc render |
+| Menu hết hạn | làm xám nút cũ, nút "Mở lại menu" |
+| Quan sát | pino + `requestId` (AsyncLocalStorage), thời gian xử lý mỗi interaction |
+| Job nền | `@OnStart`, `@OnStop`, `@Scheduled` (cron hoặc chu kỳ) |
+| Lệnh phụ | `@Command` cho admin, bên cạnh `/menu` |
+| Dev | hot reload menu, CLI `pnpm menu-kit new / generate` |
 
 ## Tài liệu
 
@@ -52,13 +59,16 @@ pnpm typecheck           # kiểm tra kiểu
 
 ```
 src/framework/   lõi framework (copy hoặc import vào bot của bạn)
-  core/          DI container, decorator
-  menu/          BaseMenu, MenuContext, Nav, phân trang
-  routing/       Router, customId, chống trùng/nhấn đúp
+  core/          DI container, decorator, lifecycle (@OnStart, @Scheduled)
+  menu/          BaseMenu, MenuContext, Nav, phân trang, V2, xác nhận, wizard
+  routing/       Router, customId, chống trùng/nhấn đúp, menu hết hạn
   middleware/    middleware, cooldown, phân quyền
   session/       session và SessionStore
-  bootstrap/     startApp, quét thư mục
+  command/       @Command (lệnh phụ)
+  logging/       pino + requestId
+  bootstrap/     startApp, quét thư mục, scheduler, hot reload
   index.ts       API công khai: import từ đây
-example/         bot mẫu: main.ts, menus/, services/
+example/         bot mẫu: main.ts, menus/, services/, commands/
+cli/             pnpm menu-kit: new, generate
 tests/           test và helper giả lập interaction
 ```

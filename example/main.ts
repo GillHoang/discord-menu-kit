@@ -16,5 +16,6 @@ await startApp({
 	clientId: required('DISCORD_CLIENT_ID'),
 	...(process.env['DEV_GUILD_ID'] ? { guildId: process.env['DEV_GUILD_ID'] } : {}),
 	command: { name: 'menu', description: 'Mở menu của bot' },
-	scan: [join(here, 'menus'), join(here, 'services')],
+	scan: [join(here, 'menus'), join(here, 'services'), join(here, 'commands')],
+	hotReload: process.argv.includes('--hot'),
 });

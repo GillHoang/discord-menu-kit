@@ -35,3 +35,11 @@ export function paginate<T>(ctx: MenuContext, items: readonly T[], options: Page
 	);
 	return { items: items.slice(page * pageSize, (page + 1) * pageSize), page, pages, total: items.length, row };
 }
+
+/** Built-in `~page` action: args are `[key, 'prev' | 'next' | 'label']`; paginate() clamps on render. */
+export function turnPage(state: Record<string, unknown>, args: readonly string[]): void {
+	const [key, dir] = args;
+	if (!key || (dir !== 'prev' && dir !== 'next')) return;
+	const k = pageStateKey(key);
+	state[k] = (Number(state[k]) || 0) + (dir === 'next' ? 1 : -1);
+}

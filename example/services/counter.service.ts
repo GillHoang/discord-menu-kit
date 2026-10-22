@@ -9,6 +9,10 @@ export class CounterService {
 		return this.counts.get(userId) ?? 0;
 	}
 
+	reset(userId: string): void {
+		this.counts.delete(userId);
+	}
+
 	increment(userId: string): number {
 		const next = this.get(userId) + 1;
 		this.counts.set(userId, next);

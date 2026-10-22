@@ -3,6 +3,39 @@
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), version theo [SemVer](https://semver.org/lang/vi/).
 Khi còn `0.x`, API có thể thay đổi giữa các bản minor.
 
+## [0.2.0] - 2026-10-22
+
+Quan sát được (observability), menu bền hơn, nhiều công cụ cho người viết bot.
+
+### Thêm
+
+- **Logging** (pino): mỗi interaction chạy trong `AsyncLocalStorage` với `requestId`; mọi dòng log kèm `userId`, `guildId`, `menuId`, `action`. Cuối mỗi interaction có dòng `interaction handled` với `outcome` (`ok` / `rejected` / `ignored` / `error`) và `durationMs`. `getLogger()`, `ctx.log`, `startApp({ logger })`, `LOG_LEVEL`.
+- **Menu hết hạn**: bấm menu hết hạn thì các nút của tin nhắn cũ bị làm xám (`disableExpired`, mặc định bật) và người dùng nhận tin ephemeral có nút "Mở lại menu" (`messages.reopen`). Bấm menu của người khác cũng có nút mở lại.
+- **Components V2**: `v2()`, `panel()`, `text()`, `separator()` hoặc builder discord.js; tự gắn cờ `IsComponentsV2`; kiểm tra giới hạn 40 component (đếm cả lồng nhau), 5 hàng với tin nhắn thường, và cấm `content`/`embeds` cùng V2, báo lỗi rõ tên menu ngay lúc render.
+- **`Nav.confirm({ message, onYes, args })`**: bước xác nhận dùng lại được; "Đồng ý" chạy `@Button(onYes)` (qua đủ middleware), "Hủy" quay lại.
+- **`WizardMenu`**: form nhiều bước với Quay lại / Hủy / Tiếp tự sinh, `validate` theo bước, `onFinish`, `finishSlow`.
+- **Validate modal bằng zod**: `@Modal('x', { schema })`, lỗi hiển thị cho người dùng, đọc kết quả bằng `ctx.input<T>()`.
+- **Lifecycle và job nền** trong `@Service`: `@OnStart()`, `@OnStop()`, `@Scheduled('0 * * * *')` / `@Scheduled({ every: '5m' })`. Job không chồng lấp, lỗi được log, spec sai báo lỗi lúc boot.
+- **`autoDefer`**: `startApp({ autoDefer: 2500 })` tự `deferUpdate()` khi handler chạy quá ngưỡng.
+- **`@Command`** (`*.command.ts`): thêm slash command phụ (admin…) bên cạnh `/menu`, có log và xử lý lỗi như menu.
+- **Hot reload** (`hotReload: true`, `pnpm dev`): nạp lại `*.menu.ts` / `*.command.ts` khi lưu mà không đăng nhập lại; lỗi thì giữ bản cũ.
+- **CLI** `pnpm menu-kit`: `new <dir>` tạo project mới (kèm mã framework), `generate menu|service|command <tên>`.
+- `startApp` tự dừng sạch khi nhận SIGINT / SIGTERM (`handleSignals`).
+
+### Thay đổi
+
+- **`startApp` trả về `App { client, stop() }`** thay vì `Client` (dùng `app.client`).
+- `RouterOptions.messages` nhận một phần (`Partial`) và có thêm `reopen`, `closed`.
+- Lỗi bất ngờ được ghi bằng pino (`handler failed`) thay vì `console.error`; `onError` vẫn được gọi thêm.
+- `scanDirectory` bỏ qua thư mục không tồn tại và nhận thêm `*.command.ts`.
+- Id menu bắt đầu bằng `~` hoặc chứa `:` bị từ chối (dành riêng cho thành phần nội bộ).
+- Router được tách thành `presenter`, `navigator`, `handler-runner`, `expiry`, `builtin-actions`.
+
+### Lưu ý
+
+- Một session nên dùng một loại tin nhắn: toàn tin nhắn thường hoặc toàn Components V2 (Discord không cho đổi loại của một tin nhắn).
+- Hot reload chỉ nạp lại menu và command; service và file phụ trợ cần khởi động lại.
+
 ## [0.1.2] - 2026-10-22
 
 Tổ chức lại `src/framework/` theo thư mục, không đổi hành vi.

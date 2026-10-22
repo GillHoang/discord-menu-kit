@@ -1,19 +1,22 @@
 {
   "name": "discord-menu-kit",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Discord bot framework: one slash command opens a menu, buttons/selects/modals are routed to decorated handlers.",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch example/main.ts",
+    "dev": "tsx example/main.ts --hot",
     "start": "tsx example/main.ts",
+    "menu-kit": "tsx cli/menu-kit.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "packageManager": "pnpm@12.14.0",
   "dependencies": {
     "discord.js": "^14.27.0",
-    "dotenv": "^18.0.8"
+    "dotenv": "^18.0.8",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

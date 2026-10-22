@@ -12,6 +12,7 @@ import {
 	type ModalSubmitInteraction,
 	type User,
 } from 'discord.js';
+import { getLogger, type Logger } from '../logging/logger.js';
 import { encodeCustomId } from '../routing/custom-id.js';
 import { paginate, type Page, type PageOptions } from './paginate.js';
 import type { Session } from '../session/session.js';
@@ -59,6 +60,19 @@ export class MenuContext {
 	/** Per-session scratch space, persisted after every handler. */
 	get state(): Record<string, unknown> {
 		return this.session.state;
+	}
+
+	/** Parsed modal input when the handler declares `@Modal(id, { schema })`. */
+	data: unknown;
+
+	/** `ctx.data` with your type: `const { name } = ctx.input<{ name: string }>()`. */
+	input<T>(): T {
+		return this.data as T;
+	}
+
+	/** Logger bound to this request (requestId, userId, menuId, action). */
+	get log(): Logger {
+		return getLogger();
 	}
 
 	/** Chosen values of a select menu. */

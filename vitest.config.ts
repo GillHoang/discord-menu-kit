@@ -12,4 +12,7 @@ const esbuildDecorators: Plugin = {
 	},
 };
 
-export default defineConfig({ plugins: [esbuildDecorators] });
+export default defineConfig({
+	plugins: [esbuildDecorators],
+	test: { env: { LOG_LEVEL: 'silent' } },
+});

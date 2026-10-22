@@ -14,6 +14,7 @@ export class HomeMenu extends BaseMenu {
 				ctx.row(
 					ctx.button('inc', '+1', { style: ButtonStyle.Primary }),
 					ctx.button('shop', 'Cửa hàng'),
+					ctx.button('reset', 'Đặt lại'),
 					ctx.button('close', 'Đóng', { style: ButtonStyle.Danger }),
 				),
 			],
@@ -23,6 +24,16 @@ export class HomeMenu extends BaseMenu {
 	@Button('inc', { cooldownMs: 500 })
 	inc(ctx: MenuContext): void {
 		this.counter.increment(ctx.user.id); // returning nothing = re-render this menu
+	}
+
+	@Button('reset')
+	askReset(): Nav {
+		return Nav.confirm({ message: 'Đặt lại bộ đếm về 0?', onYes: 'doReset' });
+	}
+
+	@Button('doReset')
+	doReset(ctx: MenuContext): void {
+		this.counter.reset(ctx.user.id);
 	}
 
 	@Button('shop')
