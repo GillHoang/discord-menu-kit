@@ -1,3 +1,4 @@
+import type { PermissionResolvable } from 'discord.js';
 import { container, type Class } from './container.js';
 import type { BaseMenu } from './menu.js';
 
@@ -10,6 +11,10 @@ export interface HandlerDef {
 	/** method name on the menu class */
 	method: string;
 	cooldownMs: number;
+	slow: boolean;
+	guildOnly: boolean;
+	permissions: PermissionResolvable[];
+	roles: string[];
 }
 
 export interface MenuDef {
@@ -22,6 +27,17 @@ export interface MenuDef {
 export interface HandlerOptions {
 	/** per-user cooldown for this handler; 0 = none */
 	cooldownMs?: number;
+	/**
+	 * Ack with `deferUpdate()` before running (handlers that call a DB/API and may exceed Discord's 3s).
+	 * The result is sent with `editReply`. Do not return `Nav.modal` from a slow handler.
+	 */
+	slow?: boolean;
+	/** reject DMs */
+	guildOnly?: boolean;
+	/** member must have all of these, e.g. `['BanMembers']` (implies guildOnly) */
+	permissions?: PermissionResolvable[];
+	/** member must have at least one of these role ids (implies guildOnly) */
+	roles?: string[];
 }
 
 const HANDLERS = Symbol.for('menu-kit.handlers');
@@ -61,7 +77,16 @@ function handlerDecorator(kind: HandlerKind) {
 			if (!Object.hasOwn(meta, HANDLERS)) meta[HANDLERS] = [...((meta[HANDLERS] as HandlerDef[] | undefined) ?? [])];
 			const list = meta[HANDLERS] as HandlerDef[];
 			if (list.some((h) => h.kind === kind && h.id === id)) throw new Error(`Duplicate @${kind} handler "${id}"`);
-			list.push({ kind, id, method: String(context.name), cooldownMs: options.cooldownMs ?? 0 });
+			list.push({
+				kind,
+				id,
+				method: String(context.name),
+				cooldownMs: options.cooldownMs ?? 0,
+				slow: options.slow ?? false,
+				guildOnly: options.guildOnly ?? false,
+				permissions: options.permissions ?? [],
+				roles: options.roles ?? [],
+			});
 		};
 }
 

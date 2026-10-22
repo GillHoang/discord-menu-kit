@@ -9,9 +9,11 @@ import { container } from './container.js';
 import { MenuContext, type MenuInteraction } from './context.js';
 import { decodeCustomId, type DecodedCustomId } from './custom-id.js';
 import type { HandlerKind, MenuDef } from './decorators.js';
+import { InteractionGuard } from './guard.js';
 import type { MenuView } from './menu.js';
 import { runMiddleware, UserError, type Middleware } from './middleware.js';
 import { Nav } from './nav.js';
+import { PAGE_ACTION, pageStateKey } from './paginate.js';
 import type { Session, SessionStore } from './session.js';
 
 export type HandledInteraction = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
@@ -21,6 +23,8 @@ export interface RouterOptions {
 	ephemeral?: boolean;
 	onError?: (error: unknown) => void;
 	messages?: { expired: string; notOwner: string; error: string };
+	/** duplicate-id / concurrent-click protection; defaults to an in-memory guard */
+	guard?: InteractionGuard;
 }
 
 const DEFAULT_MESSAGES = {
@@ -34,6 +38,7 @@ export class Router {
 	private readonly menus = new Map<string, MenuDef>();
 	private readonly rootId: string;
 	private readonly messages: typeof DEFAULT_MESSAGES;
+	private readonly guard: InteractionGuard;
 
 	constructor(
 		defs: readonly MenuDef[],
@@ -46,6 +51,7 @@ export class Router {
 		if (roots.length !== 1) throw new Error(`Exactly one @Menu(id, { root: true }) is required, found ${roots.length}`);
 		this.rootId = roots[0]!.id;
 		this.messages = options.messages ?? DEFAULT_MESSAGES;
+		this.guard = options.guard ?? new InteractionGuard();
 	}
 
 	async open(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -61,9 +67,11 @@ export class Router {
 
 	async handle(interaction: HandledInteraction): Promise<void> {
 		const decoded = decodeCustomId(interaction.customId);
-		if (!decoded) return;
+		if (!decoded || !this.guard.claim(interaction.id)) return;
 		try {
-			await this.dispatch(interaction, decoded);
+			// one handler at a time per session; extra clicks are acked and dropped (double-click)
+			const ran = await this.guard.exclusive(decoded.sessionId, () => this.dispatch(interaction, decoded));
+			if (!ran) await interaction.deferUpdate().catch(() => undefined);
 		} catch (e) {
 			await this.fail(interaction, e);
 		}
@@ -74,11 +82,17 @@ export class Router {
 		if (!session) return this.reply(i, this.messages.expired);
 		if (session.ownerId !== i.user.id) return this.reply(i, this.messages.notOwner);
 
+		if (i.isButton() && d.action === PAGE_ACTION) {
+			turnPage(session, d.args);
+			return this.apply(i, session, Nav.stay());
+		}
+
 		const def = this.menus.get(d.menuId);
 		const kind = kindOf(i);
 		const handler = def?.handlers.find((h) => h.kind === kind && h.id === d.action);
 		if (!def || !handler) throw new Error(`No @${kind} handler "${d.action}" on menu "${d.menuId}"`);
 
+		if (handler.slow) await i.deferUpdate(); // beat Discord's 3s deadline; result goes out via editReply
 		const ctx = new MenuContext(i, session, d.menuId, d.args);
 		let nav: Nav = Nav.stay();
 		await runMiddleware(this.middleware, ctx, { menuId: d.menuId, handler }, async () => {
@@ -92,6 +106,7 @@ export class Router {
 		switch (nav.type) {
 			case 'modal':
 				if (i.isModalSubmit()) throw new Error('A modal cannot open another modal');
+				if (i.deferred || i.replied) throw new Error('Nav.modal needs an unacknowledged interaction (remove slow: true)');
 				await i.showModal(nav.modal);
 				return;
 			case 'close':
@@ -123,9 +138,10 @@ export class Router {
 		return menu.render(ctx);
 	}
 
-	/** Edit the menu message in place (modal submits that did not come from a message get a new reply). */
+	/** Edit the menu message in place: `editReply` after a defer, `update` otherwise. */
 	private async update(i: HandledInteraction, view: MenuView): Promise<void> {
-		if (i.isModalSubmit() && !i.isFromMessage()) await i.reply(view);
+		if (i.deferred || i.replied) await i.editReply(view);
+		else if (i.isModalSubmit() && !i.isFromMessage()) await i.reply(view);
 		else await (i as ButtonInteraction).update(view);
 	}
 
@@ -144,4 +160,12 @@ export class Router {
 function kindOf(i: HandledInteraction): HandlerKind {
 	if (i.isModalSubmit()) return 'modal';
 	return i.isButton() ? 'button' : 'select';
+}
+
+/** Built-in `~page` action: args are `[key, 'prev' | 'next' | 'label']`; paginate() clamps on render. */
+function turnPage(session: Session, args: readonly string[]): void {
+	const [key, dir] = args;
+	if (!key || (dir !== 'prev' && dir !== 'next')) return;
+	const k = pageStateKey(key);
+	session.state[k] = (Number(session.state[k]) || 0) + (dir === 'next' ? 1 : -1);
 }

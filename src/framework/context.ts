@@ -13,6 +13,7 @@ import {
 	type User,
 } from 'discord.js';
 import { encodeCustomId } from './custom-id.js';
+import { paginate, type Page, type PageOptions } from './paginate.js';
 import type { Session } from './session.js';
 
 export type MenuInteraction =
@@ -103,6 +104,11 @@ export class MenuContext {
 			.setMaxValues(config.max ?? 1);
 		if (config.placeholder) menu.setPlaceholder(config.placeholder);
 		return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+	}
+
+	/** Slice a list for the current page; `page.row` holds the ◀ n/m ▶ buttons (handled by the router). */
+	paginate<T>(items: readonly T[], options?: PageOptions): Page<T> {
+		return paginate(this, items, options);
 	}
 
 	/** Build a modal whose submit is handled by `@Modal(action)` of the current menu; return it as `Nav.modal(...)`. */

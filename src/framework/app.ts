@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, REST, Routes, SlashCommandBuilder } 
 import { container } from './container.js';
 import { menuRegistry, serviceRegistry } from './decorators.js';
 import { cooldownMiddleware, type Middleware } from './middleware.js';
+import { permissionMiddleware } from './permissions.js';
 import { Router, type RouterOptions } from './router.js';
 import { scanDirectory } from './scan.js';
 import { MemorySessionStore, type SessionStore } from './session.js';
@@ -28,7 +29,7 @@ export async function startApp(options: AppOptions): Promise<Client> {
 	const router = new Router(
 		menuRegistry,
 		options.sessions ?? new MemorySessionStore(),
-		[cooldownMiddleware(), ...(options.middleware ?? [])],
+		[permissionMiddleware, cooldownMiddleware(), ...(options.middleware ?? [])],
 		options,
 	);
 

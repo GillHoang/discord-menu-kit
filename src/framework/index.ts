@@ -5,5 +5,8 @@ export { Button, Inject, Menu, Modal, Select, Service } from './decorators.js';
 export { BaseMenu, type MenuView } from './menu.js';
 export { cooldownMiddleware, UserError, type Middleware } from './middleware.js';
 export { Nav } from './nav.js';
+export { InteractionGuard } from './guard.js';
+export { type Page, type PageOptions } from './paginate.js';
+export { permissionMiddleware } from './permissions.js';
 export { Router } from './router.js';
 export { MemorySessionStore, type Session, type SessionStore } from './session.js';
