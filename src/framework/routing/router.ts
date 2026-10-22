@@ -1,9 +1,4 @@
-import {
-	MessageFlags,
-	type ButtonInteraction,
-	type ChatInputCommandInteraction,
-	type InteractionReplyOptions,
-} from 'discord.js';
+import { MessageFlags, type ChatInputCommandInteraction, type InteractionReplyOptions } from 'discord.js';
 import type { HandlerKind, MenuDef } from '../core/decorators.js';
 import { getLogger, runWithRequest } from '../logging/logger.js';
 import { CONFIRM_MENU, ConfirmMenu } from '../menu/confirm.js';
@@ -13,25 +8,18 @@ import { PAGE_ACTION, turnPage } from '../menu/paginate.js';
 import type { NormalizedView } from '../menu/view.js';
 import { WIZARD_ACTION } from '../menu/wizard.js';
 import { UserError, type Middleware } from '../middleware/middleware.js';
+import { assertAccess } from '../middleware/permissions.js';
 import type { Session, SessionStore } from '../session/session.js';
 import { handleConfirm, handleWizard, type BuiltinDeps } from './builtin-actions.js';
 import { decodeCustomId, type DecodedCustomId } from './custom-id.js';
-import { disableStaleMessage, isReopen, reopenRow } from './expiry.js';
+import { disableStaleMessage, isReopen } from './expiry.js';
 import { InteractionGuard } from './guard.js';
 import { HandlerRunner } from './handler-runner.js';
 import { Navigator } from './navigator.js';
 import { Presenter, type HandledInteraction } from './presenter.js';
+import { Replies, type RouterMessages } from './replies.js';
 
-export type { HandledInteraction };
-
-export interface RouterMessages {
-	expired: string;
-	notOwner: string;
-	error: string;
-	reopen: string;
-	/** shown instead of an empty message when a Components V2 menu is closed */
-	closed: string;
-}
+export type { HandledInteraction, RouterMessages };
 
 export interface RouterOptions {
 	/** open menus as ephemeral messages (only the opener sees them) */
@@ -47,21 +35,13 @@ export interface RouterOptions {
 	disableExpired?: boolean;
 }
 
-const DEFAULT_MESSAGES: RouterMessages = {
-	expired: 'Menu đã hết hạn, hãy mở menu mới.',
-	notOwner: 'Đây không phải menu của bạn, hãy mở menu riêng.',
-	error: 'Có lỗi xảy ra, thử lại sau nhé.',
-	reopen: 'Mở lại menu',
-	closed: 'Menu đã đóng.',
-};
-
 type Outcome = 'ok' | 'rejected' | 'ignored' | 'error';
 
 /** Slash command → open root menu; component/modal interaction → find handler → apply `Nav`. */
 export class Router {
 	private readonly menus = new Map<string, MenuDef>();
 	private readonly rootId: string;
-	private readonly messages: RouterMessages;
+	private readonly replies: Replies;
 	private readonly guard: InteractionGuard;
 	private readonly deps: BuiltinDeps;
 	private readonly presenter: Presenter;
@@ -73,13 +53,21 @@ export class Router {
 		private readonly options: RouterOptions = {},
 	) {
 		for (const d of defs) this.menus.set(d.id, d);
-		this.menus.set(CONFIRM_MENU, { id: CONFIRM_MENU, ctor: ConfirmMenu, root: false, handlers: [] });
+		this.menus.set(CONFIRM_MENU, {
+			id: CONFIRM_MENU,
+			ctor: ConfirmMenu,
+			root: false,
+			handlers: [],
+			guildOnly: false,
+			permissions: [],
+			roles: [],
+		});
 		const roots = defs.filter((d) => d.root);
 		if (roots.length !== 1) throw new Error(`Exactly one @Menu(id, { root: true }) is required, found ${roots.length}`);
 		this.rootId = roots[0]!.id;
-		this.messages = { ...DEFAULT_MESSAGES, ...options.messages };
+		this.replies = new Replies(options.messages, options.onError);
 		this.guard = options.guard ?? new InteractionGuard();
-		this.presenter = new Presenter(this.menus, this.messages.closed);
+		this.presenter = new Presenter(this.menus, this.replies.messages.closed);
 		const navigator = new Navigator(this.menus, sessions, this.presenter);
 		this.deps = {
 			menus: this.menus,
@@ -95,7 +83,7 @@ export class Router {
 				try {
 					await this.openMenu(interaction);
 				} catch (e) {
-					await this.fail(interaction, e);
+					await this.replies.fail(interaction, e);
 				}
 			},
 		);
@@ -134,7 +122,7 @@ export class Router {
 					}
 				} catch (e) {
 					outcome = e instanceof UserError ? 'rejected' : 'error';
-					await this.fail(interaction, e);
+					await this.replies.fail(interaction, e);
 				}
 				const fields = { outcome, durationMs: Math.round(performance.now() - started) };
 				if (outcome === 'ok') log.info(fields, 'interaction handled');
@@ -157,11 +145,11 @@ export class Router {
 		const session = await this.sessions.get(d.sessionId);
 		if (!session) {
 			if (this.options.disableExpired !== false) await disableStaleMessage(i);
-			await this.ephemeral(i, this.messages.expired, true);
+			await this.replies.ephemeral(i, this.replies.messages.expired, true);
 			return 'rejected';
 		}
 		if (session.ownerId !== i.user.id) {
-			await this.ephemeral(i, this.messages.notOwner, true);
+			await this.replies.ephemeral(i, this.replies.messages.notOwner, true);
 			return 'rejected';
 		}
 		return this.route(i, session, d);
@@ -173,6 +161,7 @@ export class Router {
 			return 'ok';
 		}
 		const def = this.menus.get(d.menuId);
+		if (def) assertAccess(i, def); // menu-level rules cover every action, reserved ones (~page, ~wiz) included
 		if (i.isButton() && d.action === PAGE_ACTION) {
 			turnPage(session.state, d.args);
 			await this.deps.navigator.apply(i, session, Nav.stay());
@@ -192,25 +181,6 @@ export class Router {
 	private asReply(view: NormalizedView): InteractionReplyOptions {
 		const flags = (view.flags ?? 0) | (this.options.ephemeral ? MessageFlags.Ephemeral : 0);
 		return (flags ? { ...view, flags } : view) as InteractionReplyOptions;
-	}
-
-	private async ephemeral(i: MenuInteraction, content: string, reopen = false): Promise<void> {
-		const payload = {
-			content,
-			flags: MessageFlags.Ephemeral,
-			...(reopen ? { components: [reopenRow(this.messages.reopen)] } : {}),
-		} as const;
-		if (i.replied || i.deferred) await (i as ButtonInteraction).followUp(payload);
-		else await (i as ButtonInteraction).reply(payload);
-	}
-
-	private async fail(i: MenuInteraction, error: unknown): Promise<void> {
-		const expected = error instanceof UserError;
-		if (!expected) {
-			getLogger().error({ err: error }, 'handler failed');
-			this.options.onError?.(error);
-		}
-		await this.ephemeral(i, expected ? error.message : this.messages.error).catch(() => undefined);
 	}
 }
 

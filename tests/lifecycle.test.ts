@@ -132,6 +132,7 @@ const fakeSlash = (commandName: string) => ({
 	commandName,
 	user: { id: 'u1' },
 	guildId: 'g1',
+	memberPermissions: { has: () => true }, // @Command permissions are enforced when the command runs
 	replied: false,
 	deferred: false,
 	reply: vi.fn(async () => undefined),

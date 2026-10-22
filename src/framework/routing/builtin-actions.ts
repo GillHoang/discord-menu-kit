@@ -4,6 +4,7 @@ import { CONFIRM_MENU, CONFIRM_STATE_KEY, type ConfirmState } from '../menu/conf
 import { MenuContext } from '../menu/context.js';
 import { Nav } from '../menu/nav.js';
 import { isWizardDirection, WizardMenu } from '../menu/wizard.js';
+import { assertAccess } from '../middleware/permissions.js';
 import type { Session } from '../session/session.js';
 import type { DecodedCustomId } from './custom-id.js';
 import type { HandlerRunner } from './handler-runner.js';
@@ -31,6 +32,7 @@ export async function handleConfirm(
 	const def = deps.menus.get(state.menuId);
 	const handler = def?.handlers.find((h) => h.kind === 'button' && h.id === state.onYes);
 	if (!def || !handler) throw new Error(`Confirm target @Button("${state.onYes}") not found on "${state.menuId}"`);
+	assertAccess(i, def); // the menu's own rules still apply to the confirmed action
 	await deps.runner.run(i, session, def, handler, state.args);
 }
 

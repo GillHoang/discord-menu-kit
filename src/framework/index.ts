@@ -11,7 +11,7 @@ export { type Page, type PageOptions } from './menu/paginate.js';
 export { panel, separator, text, v2 } from './menu/view.js';
 export { WizardMenu, type WizardStep } from './menu/wizard.js';
 export { cooldownMiddleware, UserError, type Middleware } from './middleware/middleware.js';
-export { permissionMiddleware } from './middleware/permissions.js';
+export { assertAccess, permissionMiddleware, type AccessRules } from './middleware/permissions.js';
 export { InteractionGuard } from './routing/guard.js';
 export { Router, type RouterMessages, type RouterOptions } from './routing/router.js';
 export { MemorySessionStore, type Session, type SessionStore } from './session/session.js';

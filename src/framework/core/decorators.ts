@@ -25,6 +25,21 @@ export interface MenuDef {
 	ctor: Class<BaseMenu>;
 	root: boolean;
 	handlers: HandlerDef[];
+	/** enforced on every action of this menu (reserved ones included) and when entering it */
+	guildOnly: boolean;
+	permissions: PermissionResolvable[];
+	roles: string[];
+}
+
+export interface MenuOptions {
+	/** the menu the slash command opens; exactly one menu must be the root */
+	root?: boolean;
+	/** reject DMs */
+	guildOnly?: boolean;
+	/** member needs all of these permissions to open or use the menu (implies guildOnly) */
+	permissions?: PermissionResolvable[];
+	/** member needs at least one of these role ids (implies guildOnly) */
+	roles?: string[];
 }
 
 export interface HandlerOptions {
@@ -70,12 +85,20 @@ export function Inject<T extends object>(token: Class<T>) {
 }
 
 /** Registers a menu. Exactly one menu must be `{ root: true }` — it is what the slash command opens. */
-export function Menu(id: string, options: { root?: boolean } = {}) {
+export function Menu(id: string, options: MenuOptions = {}) {
 	return (target: Class<BaseMenu>, context: ClassDecoratorContext): void => {
 		if (id.startsWith('~') || id.includes(':')) throw new Error(`Invalid menu id "${id}" ("~" prefix and ":" are reserved)`);
 		if (menuRegistry.some((m) => m.id === id)) throw new Error(`Duplicate menu id: ${id}`);
 		const handlers = (context.metadata[HANDLERS] as HandlerDef[] | undefined) ?? [];
-		menuRegistry.push({ id, ctor: target, root: options.root ?? false, handlers });
+		menuRegistry.push({
+			id,
+			ctor: target,
+			root: options.root ?? false,
+			handlers,
+			guildOnly: options.guildOnly ?? false,
+			permissions: options.permissions ?? [],
+			roles: options.roles ?? [],
+		});
 	};
 }
 

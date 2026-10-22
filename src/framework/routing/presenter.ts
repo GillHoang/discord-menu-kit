@@ -3,12 +3,15 @@ import {
 	type AnySelectMenuInteraction,
 	type ButtonInteraction,
 	type InteractionEditReplyOptions,
+	type InteractionReplyOptions,
+	type InteractionUpdateOptions,
 	type ModalSubmitInteraction,
 } from 'discord.js';
 import { container } from '../core/container.js';
 import type { MenuDef } from '../core/decorators.js';
 import { MenuContext, type MenuInteraction } from '../menu/context.js';
 import { isV2View, normalizeView, text, type NormalizedView } from '../menu/view.js';
+import { assertAccess } from '../middleware/permissions.js';
 import type { Session } from '../session/session.js';
 
 export type HandledInteraction = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
@@ -26,7 +29,10 @@ export class Presenter {
 		if (!top || !def) throw new Error(`Unknown menu "${top?.menuId}"`);
 		const ctx = new MenuContext(i, session, top.menuId, top.args);
 		const menu = container.get(def.ctor);
-		if (enter) await menu.onEnter?.(ctx);
+		if (enter) {
+			assertAccess(i, def); // opening, Nav.to and Nav.back all end up here
+			await menu.onEnter?.(ctx);
+		}
 		const view = normalizeView(await menu.render(ctx), top.menuId);
 		session.state['~v2'] = isV2View(view);
 		return view;
@@ -35,8 +41,8 @@ export class Presenter {
 	/** Edit the menu message in place: `editReply` after a defer, `update` otherwise. */
 	async update(i: HandledInteraction, view: NormalizedView): Promise<void> {
 		if (i.deferred || i.replied) await i.editReply(view as InteractionEditReplyOptions);
-		else if (i.isModalSubmit() && !i.isFromMessage()) await i.reply(view as never);
-		else await (i as ButtonInteraction).update(view as never);
+		else if (i.isModalSubmit() && !i.isFromMessage()) await i.reply(view as InteractionReplyOptions);
+		else await (i as ButtonInteraction).update(view as InteractionUpdateOptions);
 	}
 
 	/** Remove the buttons. A V2 message cannot be empty, so it gets a short closing text instead. */

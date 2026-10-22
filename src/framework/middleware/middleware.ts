@@ -15,16 +15,22 @@ export interface HandlerInfo {
  */
 export type Middleware = (ctx: MenuContext, info: HandlerInfo, next: () => Promise<void>) => Promise<void>;
 
-/** Enforces `@Button('x', { cooldownMs })` per user and handler. */
-export function cooldownMiddleware(now: () => number = Date.now): Middleware {
-	const last = new Map<string, number>();
+/** Expired entries are dropped once the table grows past this many keys. */
+const PRUNE_ABOVE = 1000;
+
+/**
+ * Enforces `@Button('x', { cooldownMs })` per user and handler.
+ * `until` maps `user:menu:handler` to the time the cooldown ends; pass your own Map to inspect it in tests.
+ */
+export function cooldownMiddleware(now: () => number = Date.now, until: Map<string, number> = new Map()): Middleware {
 	return async (ctx, { menuId, handler }, next) => {
 		if (handler.cooldownMs > 0) {
-			const key = `${ctx.user.id}:${menuId}:${handler.kind}:${handler.id}`;
 			const t = now();
-			const wait = (last.get(key) ?? 0) + handler.cooldownMs - t;
+			const key = `${ctx.user.id}:${menuId}:${handler.kind}:${handler.id}`;
+			const wait = (until.get(key) ?? 0) - t;
 			if (wait > 0) throw new UserError(`Chậm thôi, thử lại sau ${Math.ceil(wait / 1000)}s.`);
-			last.set(key, t);
+			until.set(key, t + handler.cooldownMs);
+			if (until.size > PRUNE_ABOVE) for (const [k, end] of until) if (end <= t) until.delete(k);
 		}
 		await next();
 	};

@@ -10,12 +10,13 @@ import {
 import { container, type Class } from '../core/container.js';
 import { getLogger, runWithRequest } from '../logging/logger.js';
 import { UserError } from '../middleware/middleware.js';
+import { assertAccess } from '../middleware/permissions.js';
 
 export interface CommandOptions {
 	description: string;
 	/** add options / subcommands: `build: (b) => b.addStringOption(...)` */
 	build?: (builder: SlashCommandBuilder) => unknown;
-	/** members need these permissions to see the command by default (e.g. `['Administrator']`) */
+	/** members need these permissions to see the command by default (e.g. `['Administrator']`); also enforced when it runs */
 	defaultMemberPermissions?: PermissionResolvable;
 	guildOnly?: boolean;
 }
@@ -61,6 +62,12 @@ export async function dispatchCommand(i: ChatInputCommandInteraction): Promise<v
 			const log = getLogger();
 			const started = performance.now();
 			try {
+				// Discord's default visibility can be overridden by server admins, so check at run time too
+				const required = def.options.defaultMemberPermissions;
+				assertAccess(i, {
+					guildOnly: def.options.guildOnly ?? false,
+					permissions: required === undefined ? [] : Array.isArray(required) ? required : [required],
+				});
 				await container.get(def.ctor).execute(i);
 				log.info({ outcome: 'ok', durationMs: Math.round(performance.now() - started) }, 'command handled');
 			} catch (e) {

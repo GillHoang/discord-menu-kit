@@ -108,6 +108,7 @@ await startApp({
 | `logger` | pino mặc định | Logger pino của bạn (mục 18) |
 | `hotReload` | `false` | Nạp lại menu/command khi lưu file, chỉ dùng khi phát triển (mục 21) |
 | `handleSignals` | `true` | Dừng sạch khi nhận SIGINT / SIGTERM |
+| `allowedMentions` | `{ parse: [] }` | Mention nào trong tin nhắn của bot được phép ping. Mặc định không ai bị ping, nên chữ do người dùng nhập (tên hiển thị…) không thể kích hoạt `@everyone` / role; đặt `{ parse: ['users'] }`… khi cần |
 
 Thứ tự lúc boot: quét thư mục (decorator tự đăng ký) → tạo sẵn mọi `@Service` để lỗi wiring nổ ngay → chạy `@OnStart` → đăng ký slash (menu và `@Command`) → đăng nhập → bắt đầu `@Scheduled` → định tuyến interaction.
 
@@ -143,6 +144,7 @@ Quy tắc:
 - `id` menu không được trùng, không chứa dấu `:` và không bắt đầu bằng `~` (dành riêng cho thành phần nội bộ như `~confirm`).
 - `render(ctx)` trả về `MenuView` (payload tin nhắn thường: `content`, `embeds`, `components`, `files`). Không gọi `interaction.reply` trong `render`.
 - Hook tùy chọn `onEnter(ctx)` chạy mỗi khi menu này trở thành menu đang hiển thị: lúc mở, `Nav.to` tới nó, hoặc `Nav.back` về nó.
+- `@Menu(id, { guildOnly, permissions, roles })` đặt quyền cho cả menu (mục 10).
 - Để vào menu này từ menu khác: `Nav.to('profile')` trong một handler.
 
 ## 5. Handler: button, select, modal
@@ -291,7 +293,18 @@ Ví dụ khai báo:
 
 Lỗi `UserError` chỉ hiển thị cho người dùng; các lỗi khác được ghi qua `onError` và người dùng thấy `messages.error`.
 
-Lưu ý: phân quyền áp dụng cho **handler**, không áp dụng cho việc xem menu. Nếu menu chứa dữ liệu nhạy cảm, kiểm tra quyền trong chính handler dẫn tới nó (ví dụ handler `Nav.to('admin')`).
+### Quyền cho cả menu
+
+Cùng bộ luật `guildOnly` / `permissions` / `roles` đặt được trên `@Menu`:
+
+```ts
+@Menu('admin', { permissions: ['Administrator'] })
+export class AdminMenu extends BaseMenu { /* ... */ }
+```
+
+Router áp dụng chúng ở **mọi** đường vào menu đó: mở menu, `Nav.to('admin')` (bị từ chối trước khi đụng tới stack nên session vẫn nguyên), `Nav.back`, mọi `@Button/@Select/@Modal` của nó, và các action dành riêng như Hoàn tất của `WizardMenu` hay nút phân trang. Đây là cách duy nhất bảo vệ `onFinish` của wizard (nó không phải một handler có decorator). Luật ở cấp handler vẫn dùng được thêm cho từng nút.
+
+Từ chối luôn là tin ephemeral ("Bạn không đủ quyền…"); quyền lấy từ người đang bấm, trong kênh đang bấm.
 
 ## 11. Handler chạy lâu và chống nhấn đúp
 
@@ -462,7 +475,7 @@ export class MaintenanceService {
 }
 ```
 
-- `@Scheduled` nhận **cron 5 trường** (`phút giờ ngày tháng thứ`, giờ của máy chủ; hỗ trợ `*`, `a-b`, `*/n`, danh sách `1,15`; thứ `0` hoặc `7` là Chủ nhật; đặt cả ngày lẫn thứ thì khớp một trong hai) hoặc `{ every: '30s' | '5m' | '2h' | <ms> }`. Method nhận `client` của discord.js.
+- `@Scheduled` nhận **cron 5 trường** (`phút giờ ngày tháng thứ`, giờ của máy chủ; hỗ trợ `*`, `a-b`, `*/n`, danh sách `1,15`; thứ `0` hoặc `7` là Chủ nhật; đặt cả ngày lẫn thứ thì khớp một trong hai) hoặc `{ every: '30s' | '5m' | '2h' | <ms> }` (tối đa khoảng 24,8 ngày vì giới hạn timer của Node; dài hơn thì dùng cron, quá ngưỡng sẽ báo lỗi lúc boot). Một trường cron bắt đầu bằng `*` (kể cả `*/2`) coi như không ràng buộc khi xét ngày với thứ. Method nhận `client` của discord.js.
 - Một job không bao giờ chạy chồng lên chính nó (lần sau bị bỏ qua và ghi cảnh báo). Lỗi trong job được log, không làm sập bot. Spec sai sẽ báo lỗi ngay lúc boot.
 - `@OnStart` chạy tuần tự theo thứ tự import, trước khi đăng nhập (lỗi ở đây làm bot không khởi động). `@OnStop` chạy theo thứ tự ngược khi nhận SIGINT / SIGTERM hoặc gọi `app.stop()`; tắt bằng `handleSignals: false` nếu bạn tự quản.
 
@@ -487,6 +500,7 @@ export class BanCommand extends BaseCommand {
 
 - Đặt trong file `*.command.ts`; class được tạo qua DI nên dùng được `@Inject`.
 - Được đăng ký cùng `/menu` trong một lần gửi lên Discord (ghi đè toàn bộ lệnh của bot). Tên không được trùng lệnh mở menu.
+- `defaultMemberPermissions` và `guildOnly` được **kiểm tra lại mỗi lần lệnh chạy**, không chỉ quyết định ai thấy lệnh: quản trị server có thể đổi quyền hiển thị trong Integrations, nên không được dựa vào đó để bảo vệ lệnh nguy hiểm.
 - Ném `UserError` để báo lỗi cho người dùng (ephemeral); lỗi khác được log và người dùng thấy thông báo chung. Có log `requestId` và thời gian xử lý như menu.
 
 ## 21. Hot reload
@@ -502,6 +516,8 @@ hoặc `startApp({ hotReload: true })`. Khi bạn lưu một file `*.menu.ts` / 
 - nếu file lỗi (cú pháp, thiếu menu gốc…), bot ghi log lỗi và **giữ bản cũ**.
 
 Giới hạn: service và các file phụ trợ mà menu import (helper, hằng số) **không** được nạp lại, hãy khởi động lại bot khi sửa chúng; service giữ nguyên instance và trạng thái. Chỉ dùng khi phát triển.
+
+Chi tiết: lưu liên tiếp được gộp và không bao giờ có hai lần reload chạy chồng nhau; thư mục trong `scan` phải tồn tại lúc khởi động thì mới được theo dõi (thư mục thiếu bị bỏ qua kèm cảnh báo), nên tạo sẵn `services/` và `commands/` nếu muốn hot reload file mới trong đó.
 
 ## 22. CLI `menu-kit`
 
@@ -563,6 +579,8 @@ Fake interaction không mô phỏng giới hạn 3 giây, nên hãy kiểm tra t
 | `Command "/x" clashes with the menu command` | `@Command` trùng tên với lệnh mở menu |
 | Hot reload không thấy thay đổi của service | Service và file phụ trợ không được nạp lại, hãy restart |
 | Tin nhắn V2 đổi sang tin thường (hoặc ngược lại) bị Discord từ chối | Một session chỉ nên dùng một loại tin nhắn |
+| Mention `@user` / `@role` trong tin của bot không ping | Mặc định `allowedMentions: { parse: [] }`; đặt `startApp({ allowedMentions })` nếu cần ping |
+| Lệnh `@Command` báo "không đủ quyền" dù đã chỉnh quyền trong Integrations | Quyền trong `defaultMemberPermissions` được kiểm tra lúc chạy lệnh |
 
 ## 25. Mở rộng
 

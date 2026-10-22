@@ -1,4 +1,13 @@
-import { Client, Events, GatewayIntentBits, REST, Routes, SlashCommandBuilder } from 'discord.js';
+import {
+	Client,
+	Events,
+	GatewayIntentBits,
+	REST,
+	Routes,
+	SlashCommandBuilder,
+	type ClientOptions,
+	type MessageMentionOptions,
+} from 'discord.js';
 import { commandBody, commandRegistry, dispatchCommand } from '../command/command.js';
 import { container } from '../core/container.js';
 import { menuRegistry, serviceRegistry } from '../core/decorators.js';
@@ -9,7 +18,7 @@ import { permissionMiddleware } from '../middleware/permissions.js';
 import { InteractionGuard } from '../routing/guard.js';
 import { Router, type RouterOptions } from '../routing/router.js';
 import { MemorySessionStore, type SessionStore } from '../session/session.js';
-import { watchDirectories } from './hot-reload.js';
+import { createReloader, watchDirectories } from './hot-reload.js';
 import { scanDirectory } from './scan.js';
 import { Scheduler } from './scheduler.js';
 
@@ -26,6 +35,11 @@ export interface AppOptions extends RouterOptions {
 	sessions?: SessionStore;
 	/** your own pino logger (default: JSON to stdout, level from LOG_LEVEL) */
 	logger?: Logger;
+	/**
+	 * Which mentions in bot messages may ping. Default `{ parse: [] }`: nothing pings, so text echoed from users
+	 * (display names, typed input) cannot trigger @everyone / role / user pings.
+	 */
+	allowedMentions?: MessageMentionOptions;
 	/** dev only: re-import `*.menu.ts` / `*.command.ts` on save without logging in again (services need a restart) */
 	hotReload?: boolean;
 	/** stop cleanly on SIGINT / SIGTERM (default true) */
@@ -40,6 +54,11 @@ export interface App {
 
 const callHook = (def: HookDef, ...args: unknown[]): unknown =>
 	(container.get(def.ctor) as unknown as Record<string, (...a: unknown[]) => unknown>)[def.method]!(...args);
+
+/** Client options used by `startApp` (exported so the safe mention default is testable). */
+export function discordClientOptions(allowedMentions?: MessageMentionOptions): ClientOptions {
+	return { intents: [GatewayIntentBits.Guilds], allowedMentions: allowedMentions ?? { parse: [] } };
+}
 
 /** Boot everything: scan → wire beans → @OnStart → register slash commands → login → route interactions. */
 export async function startApp(options: AppOptions): Promise<App> {
@@ -62,7 +81,7 @@ export async function startApp(options: AppOptions): Promise<App> {
 		return [menu, ...commandRegistry.map(commandBody)];
 	};
 
-	const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+	const client = new Client(discordClientOptions(options.allowedMentions));
 	const scheduler = new Scheduler(
 		scheduledJobs.map((def) => ({
 			name: `${def.ctor.name}.${def.method}`,
@@ -90,6 +109,9 @@ export async function startApp(options: AppOptions): Promise<App> {
 	};
 	await syncCommands();
 
+	// an unhandled 'error' event would crash the process without a trace
+	client.on(Events.Error, (err) => log.error({ err }, 'discord client error'));
+	client.on(Events.Warn, (message) => log.warn({ message }, 'discord client warning'));
 	client.on(Events.InteractionCreate, (i) => {
 		if (i.isChatInputCommand()) {
 			if (i.commandName === name) void router.open(i);
@@ -102,25 +124,12 @@ export async function startApp(options: AppOptions): Promise<App> {
 
 	let stopWatching = (): void => undefined;
 	if (options.hotReload) {
-		stopWatching = watchDirectories(options.scan, async () => {
-			const menus = [...menuRegistry];
-			const commands = [...commandRegistry];
-			menuRegistry.length = 0;
-			commandRegistry.length = 0;
-			try {
-				for (const dir of options.scan) {
-					await scanDirectory(dir, { kinds: ['menu', 'command'], cacheBust: Date.now() });
-				}
-				const next = buildRouter(); // validates the new menus before swapping
-				await syncCommands();
-				router = next;
-				log.info({ menus: menuRegistry.length, commands: commandRegistry.length }, 'hot reload ok');
-			} catch (e) {
-				menuRegistry.splice(0, menuRegistry.length, ...menus);
-				commandRegistry.splice(0, commandRegistry.length, ...commands);
-				log.error({ err: e }, 'hot reload failed, keeping the previous menus');
-			}
+		const reload = createReloader(options.scan, async () => {
+			const next = buildRouter(); // validates the new menus before swapping
+			await syncCommands();
+			router = next;
 		});
+		stopWatching = watchDirectories(options.scan, reload);
 		log.info('hot reload on: menus and commands reload on save, services need a restart');
 	}
 

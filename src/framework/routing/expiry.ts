@@ -4,6 +4,7 @@ import {
 	ButtonStyle,
 	MessageFlags,
 	type ButtonInteraction,
+	type InteractionUpdateOptions,
 	type Message,
 } from 'discord.js';
 import { disableAll } from '../menu/view.js';
@@ -37,12 +38,11 @@ export async function disableStaleMessage(i: HandledInteraction): Promise<boolea
 	const message = (i as { message?: Message | null }).message;
 	if (!message) return false;
 	try {
-		const components = disableAll(message.components.map((c) => c.toJSON()));
-		const v2 = message.flags.has(MessageFlags.IsComponentsV2);
-		await (i as ButtonInteraction).update({
-			components,
-			...(v2 ? { flags: MessageFlags.IsComponentsV2 } : {}),
-		} as never);
+		const update: InteractionUpdateOptions = {
+			components: disableAll(message.components.map((c) => c.toJSON())),
+			...(message.flags.has(MessageFlags.IsComponentsV2) ? { flags: MessageFlags.IsComponentsV2 } : {}),
+		};
+		await (i as ButtonInteraction).update(update);
 		return true;
 	} catch {
 		return false; // old message, missing permission…: the ephemeral notice still goes out

@@ -8,16 +8,23 @@ export interface Job {
 }
 
 const UNIT_MS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 } as const;
+const MAX_INTERVAL_MS = 2 ** 31 - 1; // largest delay setTimeout / setInterval honour
 
 /** `'30s'`, `'5m'`, `'2h'`, `'250ms'` or a number of milliseconds. */
 export function parseEvery(value: string | number): number {
-	if (typeof value === 'number') {
-		if (!(value > 0)) throw new Error(`Invalid interval: ${value}`);
-		return value;
+	let ms: number;
+	if (typeof value === 'number') ms = value;
+	else {
+		const m = /^(\d+)(ms|s|m|h)$/.exec(value.trim());
+		if (!m) throw new Error(`Invalid interval "${value}" (use e.g. "30s", "5m", "2h")`);
+		ms = Number(m[1]) * UNIT_MS[m[2] as keyof typeof UNIT_MS];
 	}
-	const m = /^(\d+)(ms|s|m|h)$/.exec(value.trim());
-	if (!m) throw new Error(`Invalid interval "${value}" (use e.g. "30s", "5m", "2h")`);
-	return Number(m[1]) * UNIT_MS[m[2] as keyof typeof UNIT_MS];
+	if (!(ms > 0)) throw new Error(`Invalid interval: ${value}`);
+	// Node clamps larger timer delays to 1 ms, which would turn a "monthly" job into a busy loop
+	if (ms > MAX_INTERVAL_MS) {
+		throw new Error(`Interval "${value}" exceeds ${MAX_INTERVAL_MS} ms (~24.8 days); use a cron expression instead`);
+	}
+	return ms;
 }
 
 interface Field {
@@ -51,7 +58,8 @@ function parseField(src: string, [min, max]: readonly [number, number]): Field {
 		}
 		for (let v = lo; v <= hi; v += step) values.add(v);
 	}
-	return { any: src === '*', values };
+	// like Vixie cron, a field that starts with "*" (including "*/2") counts as unrestricted for the day-of-month / day-of-week rule
+	return { any: src.startsWith('*'), values };
 }
 
 /** 5-field cron → predicate on a Date (local time). Day-of-month and day-of-week combine with OR when both are set. */

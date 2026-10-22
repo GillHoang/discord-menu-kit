@@ -3,6 +3,30 @@
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), version theo [SemVer](https://semver.org/lang/vi/).
 Khi còn `0.x`, API có thể thay đổi giữa các bản minor.
 
+## [0.2.1] - 2026-10-22
+
+Sửa các lỗi tìm thấy khi review toàn bộ codebase (bảo mật, độ bền, hot reload).
+
+### Bảo mật
+
+- **Không ai bị ping ngoài ý muốn**: `Client` mặc định `allowedMentions: { parse: [] }`. Trước đây chữ do người dùng kiểm soát (tên hiển thị, nội dung nhập) được menu in lại có thể chứa `@everyone` / mention role. Đổi bằng `startApp({ allowedMentions })`.
+- **`@Command` kiểm tra quyền lúc chạy**: `defaultMemberPermissions` và `guildOnly` giờ được áp dụng khi lệnh thực thi, vì quản trị server có thể đổi quyền hiển thị mặc định của Discord. Trước đây chỉ là quyền hiển thị.
+- **Quyền cấp menu**: `@Menu(id, { guildOnly, permissions, roles })` áp cho mọi action của menu (kể cả action dành riêng như `~wiz` / `~page`), khi mở menu, khi `Nav.to` / `Nav.back` và khi xác nhận `Nav.confirm`. Trước đây `onFinish` của `WizardMenu` không đi qua middleware nên không thể bảo vệ bằng quyền. `assertAccess()` được export để dùng lại.
+
+### Sửa lỗi
+
+- **Hot reload**: `fs.watch` không còn ném `ENOENT` khi thư mục `scan` chưa tồn tại (project vừa `menu-kit new` sập ngay khi `pnpm dev`); thư mục thiếu bị bỏ qua kèm cảnh báo. Các lần reload không còn chạy chồng nhau (lưu liên tiếp được gộp), lỗi thì khôi phục registry cũ.
+- **Scheduler**: `every` vượt 2^31-1 ms (ví dụ `'720h'`) bị từ chối thay vì bị Node ép thành 1 ms (job chạy dồn dập). Cron `*/n` ở trường ngày/thứ giờ hiểu như Vixie cron (AND thay vì OR).
+- **Session id** dài 48 bit (12 ký tự hex) và không bao giờ ghi đè session còn sống (trước đây 32 bit, xác suất trùng ≈ 1,2% ở 10.000 session).
+- **Cooldown** dọn các mục đã hết hạn thay vì tăng mãi.
+- Bắt `Events.Error` / `Events.Warn` của discord.js và ghi log, thay vì để sự kiện `error` không ai nghe làm sập tiến trình.
+
+### Thay đổi
+
+- Fake interaction trong test mô phỏng đúng luật ack của discord.js (phản hồi đầu tiên chỉ một lần; `editReply` / `followUp` cần ack trước), nên test bắt được ack đôi.
+- Dọn style: tách thông báo và xử lý lỗi của router sang `routing/replies.ts` (`router.ts` còn 190 dòng, API không đổi: `RouterMessages` vẫn export từ `router.ts`); bỏ các `as never` trong mã nguồn bằng kiểu đúng của discord.js; thêm `"license": "UNLICENSED"` vào `package.json` (project đang `private`).
+- `MenuDef` có thêm `guildOnly`, `permissions`, `roles`; `cooldownMiddleware(now, until)` và `MemorySessionStore(ttl, now, newId)` nhận tham số tuỳ chọn.
+
 ## [0.2.0] - 2026-10-22
 
 Quan sát được (observability), menu bền hơn, nhiều công cụ cho người viết bot.

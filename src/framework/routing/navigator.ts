@@ -1,6 +1,7 @@
 import type { MenuDef } from '../core/decorators.js';
 import { CONFIRM_MENU, CONFIRM_STATE_KEY, type ConfirmState } from '../menu/confirm.js';
 import type { Nav } from '../menu/nav.js';
+import { assertAccess } from '../middleware/permissions.js';
 import type { Session, SessionStore } from '../session/session.js';
 import type { HandledInteraction, Presenter } from './presenter.js';
 
@@ -23,10 +24,13 @@ export class Navigator {
 				await this.sessions.delete(session.id);
 				await this.presenter.close(i);
 				return;
-			case 'to':
-				if (!this.menus.has(nav.menuId)) throw new Error(`Unknown menu "${nav.menuId}"`);
+			case 'to': {
+				const target = this.menus.get(nav.menuId);
+				if (!target) throw new Error(`Unknown menu "${nav.menuId}"`);
+				assertAccess(i, target); // before touching the stack, so a refused jump leaves the session intact
 				session.stack.push({ menuId: nav.menuId, args: nav.args });
 				break;
+			}
 			case 'back':
 				if (session.stack.length > 1) session.stack.pop();
 				break;

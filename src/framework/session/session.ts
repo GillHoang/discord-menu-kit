@@ -24,18 +24,24 @@ export interface SessionStore {
 	delete(id: string): void | Promise<void>;
 }
 
+/** 48 random bits: collisions are negligible at any realistic number of live sessions (and still checked). */
+const randomId = (): string => randomBytes(6).toString('hex');
+
 export class MemorySessionStore implements SessionStore {
 	private readonly sessions = new Map<string, Session>();
 
 	constructor(
 		private readonly ttlMs = 15 * 60_000,
 		private readonly now: () => number = Date.now,
+		private readonly newId: () => string = randomId,
 	) {}
 
 	create(ownerId: string, rootMenuId: string): Session {
 		this.sweep();
+		let id = this.newId();
+		while (this.sessions.has(id)) id = this.newId(); // never overwrite another user's live session
 		const session: Session = {
-			id: randomBytes(4).toString('hex'),
+			id,
 			ownerId,
 			stack: [{ menuId: rootMenuId, args: [] }],
 			state: {},
