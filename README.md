@@ -52,6 +52,13 @@ pnpm typecheck           # kiểm tra kiểu
 
 ```
 src/framework/   lõi framework (copy hoặc import vào bot của bạn)
+  core/          DI container, decorator
+  menu/          BaseMenu, MenuContext, Nav, phân trang
+  routing/       Router, customId, chống trùng/nhấn đúp
+  middleware/    middleware, cooldown, phân quyền
+  session/       session và SessionStore
+  bootstrap/     startApp, quét thư mục
+  index.ts       API công khai: import từ đây
 example/         bot mẫu: main.ts, menus/, services/
 tests/           test và helper giả lập interaction
 ```

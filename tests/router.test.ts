@@ -11,7 +11,7 @@ import {
 	cooldownMiddleware,
 	type MenuContext,
 } from '../src/framework/index.js';
-import { menuRegistry } from '../src/framework/decorators.js';
+import { menuRegistry } from '../src/framework/core/decorators.js';
 import { fakeClick } from './helpers/fake-interaction.js';
 
 @Service()

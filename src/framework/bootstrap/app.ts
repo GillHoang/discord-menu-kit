@@ -1,11 +1,11 @@
 import { Client, Events, GatewayIntentBits, REST, Routes, SlashCommandBuilder } from 'discord.js';
-import { container } from './container.js';
-import { menuRegistry, serviceRegistry } from './decorators.js';
-import { cooldownMiddleware, type Middleware } from './middleware.js';
-import { permissionMiddleware } from './permissions.js';
-import { Router, type RouterOptions } from './router.js';
+import { container } from '../core/container.js';
+import { menuRegistry, serviceRegistry } from '../core/decorators.js';
+import { cooldownMiddleware, type Middleware } from '../middleware/middleware.js';
+import { permissionMiddleware } from '../middleware/permissions.js';
+import { Router, type RouterOptions } from '../routing/router.js';
 import { scanDirectory } from './scan.js';
-import { MemorySessionStore, type SessionStore } from './session.js';
+import { MemorySessionStore, type SessionStore } from '../session/session.js';
 
 export interface AppOptions extends RouterOptions {
 	token: string;

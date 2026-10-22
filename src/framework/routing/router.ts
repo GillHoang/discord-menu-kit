@@ -5,16 +5,16 @@ import {
 	type ChatInputCommandInteraction,
 	type ModalSubmitInteraction,
 } from 'discord.js';
-import { container } from './container.js';
-import { MenuContext, type MenuInteraction } from './context.js';
+import { container } from '../core/container.js';
+import { MenuContext, type MenuInteraction } from '../menu/context.js';
 import { decodeCustomId, type DecodedCustomId } from './custom-id.js';
-import type { HandlerKind, MenuDef } from './decorators.js';
+import type { HandlerKind, MenuDef } from '../core/decorators.js';
 import { InteractionGuard } from './guard.js';
-import type { MenuView } from './menu.js';
-import { runMiddleware, UserError, type Middleware } from './middleware.js';
-import { Nav } from './nav.js';
-import { PAGE_ACTION, pageStateKey } from './paginate.js';
-import type { Session, SessionStore } from './session.js';
+import type { MenuView } from '../menu/menu.js';
+import { runMiddleware, UserError, type Middleware } from '../middleware/middleware.js';
+import { Nav } from '../menu/nav.js';
+import { PAGE_ACTION, pageStateKey } from '../menu/paginate.js';
+import type { Session, SessionStore } from '../session/session.js';
 
 export type HandledInteraction = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
 

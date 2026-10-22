@@ -3,6 +3,16 @@
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), version theo [SemVer](https://semver.org/lang/vi/).
 Khi còn `0.x`, API có thể thay đổi giữa các bản minor.
 
+## [0.1.2] - 2026-10-22
+
+Tổ chức lại `src/framework/` theo thư mục, không đổi hành vi.
+
+### Thay đổi
+
+- Các file được nhóm theo vai trò: `core/` (container, decorators), `menu/` (menu, context, nav, paginate), `routing/` (router, custom-id, guard), `middleware/` (middleware, permissions), `session/` (session), `bootstrap/` (app, scan).
+- `src/framework/index.ts` giữ nguyên API công khai. Code import từ `index.js` không cần sửa; chỉ import sâu theo đường dẫn file cũ (ví dụ `framework/router.js`) phải đổi sang đường dẫn mới (`framework/routing/router.js`).
+- Cập nhật `README.md` và `CLAUDE.md` theo cấu trúc mới.
+
 ## [0.1.1] - 2026-10-22
 
 Chỉ thêm tài liệu, không đổi hành vi của framework.

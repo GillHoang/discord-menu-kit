@@ -9,7 +9,7 @@ import {
 	permissionMiddleware,
 	type MenuContext,
 } from '../src/framework/index.js';
-import { menuRegistry } from '../src/framework/decorators.js';
+import { menuRegistry } from '../src/framework/core/decorators.js';
 import { fakeClick } from './helpers/fake-interaction.js';
 
 const ITEMS = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];

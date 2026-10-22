@@ -12,9 +12,9 @@ import {
 	type ModalSubmitInteraction,
 	type User,
 } from 'discord.js';
-import { encodeCustomId } from './custom-id.js';
+import { encodeCustomId } from '../routing/custom-id.js';
 import { paginate, type Page, type PageOptions } from './paginate.js';
-import type { Session } from './session.js';
+import type { Session } from '../session/session.js';
 
 export type MenuInteraction =
 	| ChatInputCommandInteraction

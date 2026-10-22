@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeCustomId, encodeCustomId } from '../src/framework/custom-id.js';
+import { decodeCustomId, encodeCustomId } from '../src/framework/routing/custom-id.js';
 
 describe('customId', () => {
 	it('round-trips session, menu, action and args', () => {

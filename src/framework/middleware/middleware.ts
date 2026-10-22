@@ -1,5 +1,5 @@
-import type { MenuContext } from './context.js';
-import type { HandlerDef } from './decorators.js';
+import type { MenuContext } from '../menu/context.js';
+import type { HandlerDef } from '../core/decorators.js';
 
 /** Throw from a handler or middleware to show `message` to the user as an ephemeral reply. */
 export class UserError extends Error {}

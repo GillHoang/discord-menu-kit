@@ -1,6 +1,6 @@
 import type { PermissionResolvable } from 'discord.js';
 import { container, type Class } from './container.js';
-import type { BaseMenu } from './menu.js';
+import type { BaseMenu } from '../menu/menu.js';
 
 export type HandlerKind = 'button' | 'select' | 'modal';
 
